@@ -237,7 +237,21 @@ header.app-header p { font-size: .78rem; opacity: .88; margin-top: 2px; }
   text-align: center;
   background: #fafbfc;
 }
-.media-zone input[type=file] { display: none; }
+.media-zone input[type=file] {
+  /* Never display:none — breaks label/file chooser on iOS & Android WebView */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+}
+.media-btns { position: relative; }
+.media-btn { position: relative; overflow: hidden; }
 .media-btns {
   display: flex;
   gap: 10px;
@@ -644,11 +658,13 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
     <h2><span class="ico">📷</span> Photos &amp; Vidéos</h2>
     <div class="media-zone">
       <div class="media-btns">
-        <label class="media-btn" for="mediaInputGallery">🖼 Galerie</label>
-        <label class="media-btn media-btn-camera" for="mediaInputCamera">📷 Caméra</label>
+        <label class="media-btn" id="btnMediaGallery">🖼 Galerie
+          <input type="file" id="mediaInputGallery" accept="image/*,video/*" multiple>
+        </label>
+        <label class="media-btn media-btn-camera" id="btnMediaCamera">📷 Caméra
+          <input type="file" id="mediaInputCamera" accept="image/*" capture="environment">
+        </label>
       </div>
-      <input type="file" id="mediaInputGallery" accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/*" multiple>
-      <input type="file" id="mediaInputCamera" accept="image/*" capture="environment">
       <p class="hint" style="margin-top:8px">Galerie ou appareil photo · max 8 photos compressées (1600px) · vidéos listées par nom</p>
       <p class="media-meta" id="mediaMeta">0 / 8 photos</p>
     </div>
@@ -2323,12 +2339,13 @@ function init() {
       var el = $(id);
       if (!el) return;
       el.addEventListener("change", function () {
-        handleMediaFiles(this.files);
+        if (this.files && this.files.length) handleMediaFiles(this.files);
         this.value = "";
       });
     }
     bindMediaInput("mediaInputGallery");
     bindMediaInput("mediaInputCamera");
+
 
     $("sigClear").addEventListener("click", clearSignature);
     $("btnPdf").addEventListener("click", genPDF);
