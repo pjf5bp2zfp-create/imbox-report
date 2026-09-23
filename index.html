@@ -441,12 +441,38 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
   .wrap { max-width: 560px; }
 }
 
+
+/* ===== Netlify rubrics Oui/Non + Types ===== */
+.types{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.tlbl{font-size:.78rem;color:var(--gray);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.tb{padding:8px 16px;border-radius:20px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-size:.85rem;font-weight:600;color:#555;transition:all .15s;min-height:40px;touch-action:manipulation}
+.tb.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.ynr{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f2f5;gap:8px}
+.ynr:last-child{border-bottom:none}
+.ynr > .yn-label{font-size:.92rem;color:#2a2a3e;flex:1;padding-right:6px;font-weight:500}
+.yns{display:flex;gap:6px;flex-shrink:0;align-items:center}
+.yb{padding:8px 16px;border-radius:14px;border:1.5px solid var(--border);cursor:pointer;font-size:.85rem;font-weight:700;background:#fff;color:#666;transition:all .15s;min-height:40px;touch-action:manipulation}
+.yb.yes.on{background:var(--green);color:#fff;border-color:var(--green)}
+.yb.no.on{background:var(--red);color:#fff;border-color:var(--red)}
+.qty{width:64px;padding:8px 7px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;text-align:center;background:#f8f9fc;min-height:40px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.calc-input{background:#eef7e6!important;color:#2e6b0e!important;font-weight:700!important;border-color:#b8dda0!important}
+.vbar{background:#e6f1fb;border:1px solid #b5d4f4;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#0C447C;display:none;margin-top:8px}
+.vbar.show{display:block}
+.vbar b{font-weight:700}
+.section-tag{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--blue);background:#e8f0fa;padding:3px 8px;border-radius:6px;margin-bottom:10px}
+@media(max-width:640px){
+  .g2,.g3{grid-template-columns:1fr}
+  .tb{padding:10px 14px;font-size:.9rem}
+}
+
 </style>
 </head>
 <body>
 
 <header class="app-header">
-  <h1>IMBOX Report · Mobile</h1>
+  <h1>IMBOX Report</h1>
   <p>CAPS Group — France STC Nord · Technicien terrain</p>
   <span class="db-badge" id="dbBadge">Base magasins…</span>
 </header>
@@ -456,11 +482,23 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
   Vérifiez que <code>pdf-lib.min.js</code> et <code>imbox-officiel-modele.pdf</code> sont à côté de cette page.
 </div>
 
+
 <div class="wrap">
+
+  <!-- ===== TYPE ===== -->
+  <div class="types" id="visitTypes" role="group" aria-label="Type d'intervention">
+    <span class="tlbl">Type :</span>
+    <button type="button" class="tb on" data-type="Service">Service</button>
+    <button type="button" class="tb" data-type="Panne">Panne</button>
+    <button type="button" class="tb" data-type="Installation">Installation</button>
+    <button type="button" class="tb" data-type="Enlevement">Enlèvement</button>
+    <button type="button" class="tb" data-type="Echange">Échange</button>
+  </div>
+  <input type="hidden" id="visitType" value="Service">
 
   <!-- ===== MAGASIN ===== -->
   <section class="card" id="sec-magasin">
-    <h2><span class="ico">🏪</span> Magasin</h2>
+    <h2><span class="ico">🏪</span> Recherche magasin</h2>
     <p class="shop-count-hint" id="shopCountHint">Base embarquée en cours de chargement…</p>
     <div class="field search-wrap">
       <label for="shopSearch">Rechercher (nom / S/N / ville / CP)</label>
@@ -472,151 +510,136 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
       <button type="button" class="btn-secondary primary-outline" id="btnManual">✏️ Saisie manuelle</button>
       <button type="button" class="btn-secondary" id="btnClearShop">Effacer magasin</button>
     </div>
-    <div class="row2">
+    <div class="vbar" id="visitBar"></div>
+  </section>
+
+  <section class="card" id="sec-infos">
+    <h2><span class="ico">📋</span> Informations magasin</h2>
+    <div class="g2">
       <div class="field">
         <label for="shopName">Nom du magasin</label>
-        <input type="text" id="shopName" placeholder="Sélectionnez ou saisissez">
+        <input type="text" id="shopName" placeholder="—">
       </div>
       <div class="field">
-        <label for="shopSn">N° de série (S/N)</label>
-        <input type="text" id="shopSn" placeholder="Ex. 250451" inputmode="numeric">
-      </div>
-    </div>
-    <div class="field">
-      <label for="shopAddr">Adresse</label>
-      <input type="text" id="shopAddr">
-    </div>
-    <div class="row3 keep2">
-      <div class="field">
-        <label for="shopCity">Ville</label>
-        <input type="text" id="shopCity">
+        <label for="shopAddr">Adresse</label>
+        <input type="text" id="shopAddr" placeholder="—">
       </div>
       <div class="field">
-        <label for="shopCp">Code postal</label>
-        <input type="text" id="shopCp" inputmode="numeric">
+        <label for="shopCityCp">Ville / Code postal</label>
+        <input type="text" id="shopCityCp" placeholder="—">
+        <input type="hidden" id="shopCity" value="">
+        <input type="hidden" id="shopCp" value="">
       </div>
       <div class="field">
         <label for="shopPhone">Téléphone</label>
-        <input type="tel" id="shopPhone">
-      </div>
-    </div>
-    <div class="row3 keep2">
-      <div class="field">
-        <label for="shopFluid">Fluide (réservoir)</label>
-        <input type="text" id="shopFluid" placeholder="ex. 20 L">
+        <input type="tel" id="shopPhone" placeholder="—">
       </div>
       <div class="field">
-        <label for="shopFreq">Fréquence</label>
-        <input type="text" id="shopFreq" placeholder="Mensuelle">
+        <label for="shopSn">Serial Number / N° de série</label>
+        <input type="text" id="shopSn" placeholder="—" inputmode="numeric">
       </div>
       <div class="field">
-        <label for="shopLast">Dernière visite</label>
-        <input type="text" id="shopLast" placeholder="JJ/MM/AAAA">
+        <label for="shopCtr">Counter Number / N° de compteur</label>
+        <input type="text" id="shopCtr" placeholder="—">
       </div>
     </div>
-    <div class="field">
-      <label for="shopNext">Prochaine visite prévue</label>
-      <input type="text" id="shopNext" placeholder="JJ/MM/AAAA">
+    <div class="g2" style="margin-top:8px">
+      <div class="field">
+        <label for="oldLevel">Ancien niveau de liquide (litres)</label>
+        <div class="liquid-row">
+          <button type="button" class="liq-btn" id="liqMinus" aria-label="Diminuer">−</button>
+          <input type="number" id="oldLevel" min="0" max="20" step="0.001" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="0" placeholder="ex: 14,500" class="editable-num">
+          <button type="button" class="liq-btn" id="liqPlus" aria-label="Augmenter">+</button>
+        </div>
+        <p class="hint">0 – 20 L · précision 0,001 · boutons ±0,5 L</p>
+      </div>
+      <div class="field">
+        <label for="addedLevelInput">Liquide ajouté — calculé auto (20 − ancien)</label>
+        <input type="text" id="addedLevelInput" readonly class="calc-input" placeholder="calculé automatiquement" value="">
+        <div class="added-badge" id="addedLevel" aria-live="polite" style="display:none">20,000 L</div>
+      </div>
     </div>
+    <div class="field" style="margin-top:8px">
+      <label for="shopFreq">Fréquence des visites</label>
+      <input type="text" id="shopFreq" readonly placeholder="—">
+    </div>
+    <!-- legacy hidden fields kept for JS compatibility -->
+    <input type="hidden" id="shopFluid" value="">
+    <input type="hidden" id="shopLast" value="">
+    <input type="hidden" id="shopNext" value="">
   </section>
 
   <!-- ===== SERVICE ===== -->
   <section class="card" id="sec-service">
     <h2><span class="ico">🔧</span> Service</h2>
-    <div class="row2">
-      <div class="field">
-        <label for="svcDate">Date d'intervention</label>
-        <input type="date" id="svcDate">
-      </div>
-      <div class="field">
-        <label for="techName">Technicien</label>
-        <input type="text" id="techName" placeholder="Nom du technicien" autocomplete="name">
+    <div class="ynr"><span class="yn-label">Avez-vous nettoyé la chambre ?</span><div class="yns" id="y0"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous remplacé le bidon de liquide ?</span><div class="yns" id="y1"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous fait le test de pulvérisation ?</span><div class="yns" id="y2"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous réglé le niveau de fluide à 20 L ?</span><div class="yns" id="y3"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous remplacé les buses arrière en plastique ?</span><div class="yns" id="y4"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button><input class="qty" id="q0" type="number" min="0" placeholder="Qté" inputmode="numeric"></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous remplacé les buses en laiton avant/sup. ?</span><div class="yns" id="y5"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button><input class="qty" id="q1" type="number" min="0" placeholder="Qté" inputmode="numeric"></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous remplacé la buse centrale arrière en laiton ?</span><div class="yns" id="y6"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous remplacé des filtres ?</span><div class="yns" id="y7"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button><input class="qty" id="q2" type="number" min="0" placeholder="Qté" inputmode="numeric"></div></div>
+    <div class="ynr"><span class="yn-label">Changer les inserts en carton</span><div class="yns" id="y8"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Changer les deux tapis</span><div class="yns" id="y9"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f2f5">
+      <div class="section-tag">Consommables : 14 tapis avant + 7 tapis arrière + 2 boîtes de lingettes</div>
+      <div class="g3">
+        <div class="field"><label for="cntTapisAv">Tapis avant (max 14)</label><input type="number" id="cntTapisAv" min="0" max="14" value="0" inputmode="numeric" class="editable-num"></div>
+        <div class="field"><label for="cntTapisAr">Tapis arrière (max 7)</label><input type="number" id="cntTapisAr" min="0" max="7" value="0" inputmode="numeric" class="editable-num"></div>
+        <div class="field"><label for="cntLingettes">Boîtes lingettes (max 2)</label><input type="number" id="cntLingettes" min="0" max="2" value="0" inputmode="numeric" class="editable-num"></div>
       </div>
     </div>
-    <div class="field">
-      <label for="visitType">Type de visite</label>
-      <select id="visitType">
-        <option value="préventive">Préventive</option>
-        <option value="curative">Curative</option>
-        <option value="installation">Installation</option>
-        <option value="autre">Autre</option>
-      </select>
-    </div>
+    <div class="ynr" style="margin-top:10px"><span class="yn-label">Les surfaces sont propres et exemptes de dommage visible ?</span><div class="yns" id="y10"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous pris toutes les photos obligatoires ?</span><div class="yns" id="y11"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
   </section>
 
-  <!-- ===== LIQUIDE ===== -->
-  <section class="card" id="sec-liquide">
-    <h2><span class="ico">🧴</span> Liquide IMBOX</h2>
-    <div class="field">
-      <label for="oldLevel">Niveau avant intervention (0 – 20 L)</label>
-      <div class="liquid-row">
-        <button type="button" class="liq-btn" id="liqMinus" aria-label="Diminuer de 0,5 L">−</button>
-        <input type="text" id="oldLevel" inputmode="decimal" autocomplete="off" enterkeyhint="done"
-          value="0" placeholder="ex. 12,5" class="editable-num">
-        <button type="button" class="liq-btn" id="liqPlus" aria-label="Augmenter de 0,5 L">+</button>
-      </div>
-      <p class="hint">Saisissez le niveau (virgule ou point OK) · boutons ±0,5 L</p>
-    </div>
-    <div class="field">
-      <label>Volume ajouté (remplissage à 20 L)</label>
-      <div class="added-badge" id="addedLevel" aria-live="polite">20.0 L</div>
-      <p class="hint" id="addedHint">Calcul auto : 20 − niveau avant</p>
-    </div>
-  </section>
-
-  <!-- ===== COMPTEURS ===== -->
-  <section class="card" id="sec-compteurs">
-    <h2><span class="ico">🔢</span> Compteurs / Consommables</h2>
-    <div class="field">
-      <label>Tapis avant (max 14)</label>
-      <div class="counter">
-        <button type="button" data-target="cntTapisAv" data-dir="-1" aria-label="Diminuer">−</button>
-        <input type="number" id="cntTapisAv" value="0" min="0" max="14" inputmode="numeric" class="editable-num">
-        <button type="button" data-target="cntTapisAv" data-dir="1" aria-label="Augmenter">+</button>
-      </div>
-    </div>
-    <div class="field">
-      <label>Tapis arrière (max 7)</label>
-      <div class="counter">
-        <button type="button" data-target="cntTapisAr" data-dir="-1" aria-label="Diminuer">−</button>
-        <input type="number" id="cntTapisAr" value="0" min="0" max="7" inputmode="numeric" class="editable-num">
-        <button type="button" data-target="cntTapisAr" data-dir="1" aria-label="Augmenter">+</button>
-      </div>
-    </div>
-    <div class="field">
-      <label>Boîtes de lingettes (max 2)</label>
-      <div class="counter">
-        <button type="button" data-target="cntLingettes" data-dir="-1" aria-label="Diminuer">−</button>
-        <input type="number" id="cntLingettes" value="0" min="0" max="2" inputmode="numeric" class="editable-num">
-        <button type="button" data-target="cntLingettes" data-dir="1" aria-label="Augmenter">+</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== CHECKLIST SERVICE ===== -->
-  <section class="card" id="sec-checklist">
-    <h2><span class="ico">✅</span> Checklist service</h2>
-    <span class="section-tag">Contrôle machine</span>
-    <div class="checklist" id="cl-service"></div>
-  </section>
-
+  <!-- ===== PANNE ===== -->
   <section class="card" id="sec-panne">
-    <h2><span class="ico">⚠️</span> Panne / Anomalies</h2>
-    <span class="section-tag">Diagnostic</span>
-    <div class="checklist" id="cl-panne"></div>
-    <div class="field" style="margin-top:12px">
-      <label for="obsPanne">Description panne / observations</label>
-      <textarea id="obsPanne" placeholder="Décrire les anomalies constatées, pièces remplacées, actions réalisées…"></textarea>
+    <h2><span class="ico">⚠️</span> Panne</h2>
+    <div class="ynr"><span class="yn-label">La panne a-t-elle été réparée avec succès ?</span><div class="yns" id="y12"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="field" style="margin-top:10px"><label for="obsPanne">Sinon, veuillez expliquer</label><textarea id="obsPanne" placeholder="Description de la panne..."></textarea></div>
+    <div class="field" style="margin-top:8px"><label for="piecesReplaced">Avez-vous remplacé des pièces ? Lesquelles ?</label><textarea id="piecesReplaced" placeholder="Liste des pièces remplacées..."></textarea></div>
+  </section>
+
+  <!-- ===== CIRCUIT IMPRIMÉ ===== -->
+  <section class="card" id="sec-ci">
+    <h2><span class="ico">🔌</span> Circuit imprimé — remplacement</h2>
+    <div class="g2">
+      <div class="field"><label for="ciSn">N° de série du nouveau circuit imprimé</label><input id="ciSn" type="text" placeholder="—"></div>
+      <div class="field"><label for="ciCtr">Compteur circuit imprimé</label><input id="ciCtr" type="text" placeholder="—"></div>
+      <div class="field"><label for="ciTel">N° de téléphone du nouveau c. imprimé</label><input id="ciTel" type="text" placeholder="—"></div>
+      <div class="field" style="display:flex;flex-direction:row;align-items:center;gap:10px;padding-top:18px">
+        <span class="yn-label" style="white-space:nowrap;font-size:.85rem;color:var(--gray);font-weight:600">Photo N° série ?</span>
+        <div class="yns" id="y13"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div>
+      </div>
     </div>
   </section>
 
-  <section class="card" id="sec-ci">
-    <h2><span class="ico">🏁</span> CI / Flagship</h2>
-    <span class="section-tag">Points de contrôle complémentaires</span>
-    <div class="checklist" id="cl-ci"></div>
+  <!-- ===== FLAGSHIP ===== -->
+  <section class="card" id="sec-flagship">
+    <h2><span class="ico">🏁</span> Flagship</h2>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="field"><label for="swVersion">Version du Software</label><input id="swVersion" type="text" placeholder="—"></div>
+      <div class="field"><label for="fluid2">Niveau de fluide 2</label><input id="fluid2" type="text" placeholder="—"></div>
+    </div>
+    <div class="ynr"><span class="yn-label">Le LTE fonctionne-t-il ? (pas de × dans le coin gauche)</span><div class="yns" id="y14"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Le Wi-Fi fonctionne-t-il ?</span><div class="yns" id="y15"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous pris toutes les photos obligatoires ?</span><div class="yns" id="y16"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
   </section>
 
-  <!-- ===== MÉDIAS ===== -->
+  <!-- ===== EXCHANGE ===== -->
+  <section class="card" id="sec-exchange">
+    <h2><span class="ico">🔄</span> Exchange / Enlèvement / Déménagement</h2>
+    <div class="g2">
+      <div class="field"><label for="remSn">N° de série unité enlevée</label><input id="remSn" type="text" placeholder="—"></div>
+      <div class="field"><label for="remCtr">N° de compteur unité enlevée</label><input id="remCtr" type="text" placeholder="—"></div>
+      <div class="field"><label for="newSn">N° de série nouvelle unité</label><input id="newSn" type="text" placeholder="—"></div>
+      <div class="field"><label for="newCtr">N° de compteur nouvelle unité</label><input id="newCtr" type="text" placeholder="—"></div>
+    </div>
+  </section>
+
+  <!-- ===== MÉDIAS (KEEP Galerie+Caméra) ===== -->
   <section class="card" id="sec-media">
     <h2><span class="ico">📷</span> Photos &amp; Vidéos</h2>
     <div class="media-zone">
@@ -632,9 +655,28 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
     <div class="media-preview" id="mediaPreview"></div>
   </section>
 
+  <!-- ===== TECHNICIEN ===== -->
+  <section class="card" id="sec-tech">
+    <h2><span class="ico">👷</span> Informations technicien</h2>
+    <div class="g2" style="margin-bottom:10px">
+      <div class="field">
+        <label for="svcDate">Date</label>
+        <input type="date" id="svcDate">
+      </div>
+      <div class="field">
+        <label for="techName">Nom du technicien</label>
+        <input type="text" id="techName" placeholder="Prénom NOM" autocomplete="name">
+      </div>
+    </div>
+    <div class="field">
+      <label for="techComments">Commentaires / observations</label>
+      <textarea id="techComments" rows="3" placeholder="Tout autre commentaire ou observation..."></textarea>
+    </div>
+  </section>
+
   <!-- ===== SIGNATURE ===== -->
   <section class="card" id="sec-signature">
-    <h2><span class="ico">✍️</span> Signature technicien</h2>
+    <h2><span class="ico">✍️</span> Cachet et signature</h2>
     <canvas id="sigCanvas" width="600" height="200"></canvas>
     <div class="sig-actions">
       <button type="button" class="btn-secondary" id="sigClear">Effacer la signature</button>
@@ -1237,36 +1279,9 @@ var DB = [
   {sn:"250254",name:"Deichmann Béthune",addr:"Grand Place",city:"Béthune",cp:"62400",phone:"03 21 48 62 74",freq:"Bimensuelle",lastVisit:"2026-08-23",nextVisit:"2026-09-22",fluidMl:20000}
 ];
 
-var CHECKLISTS = {
-  service: [
-    { id:"cl_propre", label:"Machine propre (intérieur / extérieur)" },
-    { id:"cl_buses", label:"Buses OK (débouchées, débit correct)" },
-    { id:"cl_ecran", label:"Écran / interface OK" },
-    { id:"cl_stock", label:"Stock consommables OK" },
-    { id:"cl_panneau", label:"Panneau / signalétique OK" },
-    { id:"cl_filtre", label:"Filtres contrôlés / nettoyés" },
-    { id:"cl_pompe_ok", label:"Pompe / circuit OK" },
-    { id:"cl_test", label:"Test distribution effectué" },
-    { id:"cl_niveau", label:"Niveau liquide contrôlé / complété" },
-    { id:"cl_tapis", label:"Tapis remplacés si besoin" },
-    { id:"cl_lingettes", label:"Lingettes remplacées si besoin" }
-  ],
-  panne: [
-    { id:"cl_fuite", label:"Fuite constatée" },
-    { id:"cl_alarme", label:"Alarme / code erreur actif" },
-    { id:"cl_pompe", label:"Pompe / moteur défaillant" },
-    { id:"cl_elec", label:"Problème électrique / alimentation" },
-    { id:"cl_piece", label:"Pièce remplacée" },
-    { id:"cl_bloque", label:"Machine bloquée / hors service" }
-  ],
-  ci: [
-    { id:"cl_flagship", label:"Point Flagship / CI contrôlé" },
-    { id:"cl_hygiene", label:"Conformité hygiène zone vente" },
-    { id:"cl_formation", label:"Personnel magasin briefé" },
-    { id:"cl_visibilite", label:"Visibilité / accessibilité machine OK" },
-    { id:"cl_rapport", label:"Rapport remis / validé magasin" }
-  ]
-};
+/* Netlify-style Oui/Non + visit type (no dynamic CHECKLISTS) */
+var CURRENT_VISIT_TYPE = "Service";
+
 
 var mediaStore = [];
 var selectedShop = null;
@@ -1354,9 +1369,10 @@ function esc(s) {
 }
 
 function unlockShopFields() {
-  ["shopName","shopSn","shopAddr","shopCity","shopCp","shopPhone","shopFluid","shopFreq","shopLast","shopNext"].forEach(function (id) {
+  ["shopName","shopSn","shopAddr","shopCityCp","shopCity","shopCp","shopPhone","shopCtr","shopFluid","shopFreq","shopLast","shopNext"].forEach(function (id) {
     var el = $(id);
     if (!el) return;
+    if (id === "shopFreq") return; /* stay readonly from DB */
     el.readOnly = false;
     el.removeAttribute("readonly");
     el.removeAttribute("disabled");
@@ -1372,17 +1388,45 @@ function pickShop(s) {
   $("shopAddr").value = s.addr;
   $("shopCity").value = s.city;
   $("shopCp").value = s.cp;
+  var cityCp = $("shopCityCp");
+  if (cityCp) cityCp.value = (s.city || "") + (s.cp ? " — " + s.cp : "");
   $("shopPhone").value = s.phone;
-  $("shopFluid").value = (s.fluidMl / 1000).toFixed(1) + " L (" + s.fluidMl + " mL)";
+  if ($("shopCtr") && !$("shopCtr").value) $("shopCtr").value = "";
+  $("shopFluid").value = (s.fluidMl / 1000).toFixed(3) + " L (" + s.fluidMl + " mL)";
   $("shopFreq").value = s.freq;
   $("shopLast").value = formatDateFR(s.lastVisit);
   $("shopNext").value = formatDateFR(s.nextVisit);
+  /* Prefill ancien niveau from DB fluidMl (mL → L, 3 decimals) */
+  var lv = parseFloat(s.fluidMl);
+  if (!isNaN(lv) && lv > 0) {
+    var liters = lv / 1000;
+    if (liters > 20) liters = 20;
+    $("oldLevel").value = liters.toFixed(3).replace(".", ",");
+    updateAdded();
+  }
   $("shopSuggestions").className = "";
   $("shopSuggestions").innerHTML = "";
+  var vb = $("visitBar");
+  if (vb) {
+    vb.className = "vbar show";
+    vb.innerHTML = "Dernière visite : <b>" + esc(formatDateFR(s.lastVisit) || "—") + "</b> &nbsp;|&nbsp; Prochaine : <b>" + esc(formatDateFR(s.nextVisit) || "—") + "</b> &nbsp;|&nbsp; " + esc(s.freq || "");
+  }
   toast("Magasin sélectionné : " + s.name, "ok");
 }
 
+function syncCityCpFields() {
+  var raw = ($("shopCityCp") && $("shopCityCp").value) || "";
+  var parts = raw.split("—");
+  if (parts.length >= 2) {
+    $("shopCity").value = parts[0].trim();
+    $("shopCp").value = parts.slice(1).join("—").trim();
+  } else if (raw.trim()) {
+    $("shopCity").value = raw.trim();
+  }
+}
+
 function shopFromFields() {
+  syncCityCpFields();
   return {
     sn: ($("shopSn").value || "").trim(),
     name: ($("shopName").value || "").trim(),
@@ -1390,6 +1434,7 @@ function shopFromFields() {
     city: ($("shopCity").value || "").trim(),
     cp: ($("shopCp").value || "").trim(),
     phone: ($("shopPhone").value || "").trim(),
+    counter: ($("shopCtr") && $("shopCtr").value || "").trim(),
     freq: ($("shopFreq").value || "").trim() || "—",
     lastVisit: ($("shopLast").value || "").trim(),
     nextVisit: ($("shopNext").value || "").trim(),
@@ -1402,9 +1447,9 @@ function enableManualShop() {
   selectedShop = null;
   $("shopSearch").value = "";
   $("shopSuggestions").className = "";
-  ["shopName","shopSn","shopAddr","shopCity","shopCp","shopPhone","shopFluid","shopFreq","shopLast","shopNext"].forEach(function (id) {
-    $(id).readOnly = false;
-  });
+  unlockShopFields();
+  var freq = $("shopFreq");
+  if (freq) { freq.readOnly = false; }
   $("shopName").focus();
   toast("Saisie manuelle activée", "ok");
 }
@@ -1412,10 +1457,12 @@ function enableManualShop() {
 function clearShop() {
   selectedShop = null;
   $("shopSearch").value = "";
-  ["shopName","shopSn","shopAddr","shopCity","shopCp","shopPhone","shopFluid","shopFreq","shopLast","shopNext"].forEach(function (id) {
-    $(id).value = "";
+  ["shopName","shopSn","shopAddr","shopCity","shopCp","shopCityCp","shopPhone","shopCtr","shopFluid","shopFreq","shopLast","shopNext"].forEach(function (id) {
+    var el = $(id); if (el) el.value = "";
   });
   $("shopSuggestions").className = "";
+  var vb = $("visitBar");
+  if (vb) { vb.className = "vbar"; vb.innerHTML = ""; }
 }
 
 /* ---- Liquide ---- */
@@ -1434,24 +1481,77 @@ function updateAdded(opts) {
   el.readOnly = false;
   el.removeAttribute("readonly");
   var v = parseLiters(el.value);
-  if (isNaN(v) || v < 0) v = 0;
-  if (v > 20) v = 20;
-  if (opts.snap) {
-    el.value = String(v).replace(".", ",");
-  }
-  var added = Math.max(0, +(20 - v).toFixed(1));
+  var addEl = $("addedLevelInput");
   var badge = $("addedLevel");
-  if (badge) badge.textContent = added.toFixed(1).replace(".", ",") + " L";
-  return added;
+  if (isNaN(v) || v < 0 || v > 20) {
+    if (addEl) addEl.value = "";
+    if (badge) badge.textContent = "";
+    return 0;
+  }
+  if (opts.snap) {
+    /* keep user precision up to 3 decimals */
+    el.value = String(Number(v.toFixed(3))).replace(".", ",");
+  }
+  var addedStr = (20 - v).toFixed(3).replace(".", ",") + " L";
+  if (addEl) addEl.value = addedStr;
+  if (badge) badge.textContent = addedStr;
+  return +(20 - v).toFixed(3);
 }
+
+function calcFluid() { return updateAdded(); }
 
 function bumpLiquid(delta) {
   var el = $("oldLevel");
   var v = parseLiters(el.value);
   if (isNaN(v)) v = 0;
-  v = Math.min(20, Math.max(0, +(v + delta).toFixed(1)));
+  v = Math.min(20, Math.max(0, +(v + delta).toFixed(3)));
   el.value = String(v).replace(".", ",");
   updateAdded();
+}
+
+function tog(id, val) {
+  var c = $(id);
+  if (!c) return;
+  c.querySelectorAll(".yb").forEach(function (b) { b.classList.remove("on"); });
+  var t = c.querySelector(".yb." + val);
+  if (t) t.classList.add("on");
+}
+
+function gyn(id) {
+  var c = $(id);
+  if (!c) return "—";
+  var a = c.querySelector(".yb.on");
+  return a ? a.textContent.trim() : "—";
+}
+
+function setVisitTypeUI(typeName) {
+  CURRENT_VISIT_TYPE = typeName || "Service";
+  var hid = $("visitType");
+  if (hid) hid.value = CURRENT_VISIT_TYPE;
+  document.querySelectorAll("#visitTypes .tb").forEach(function (b) {
+    b.classList.toggle("on", b.getAttribute("data-type") === CURRENT_VISIT_TYPE);
+  });
+}
+
+function bindOuiNonToggles() {
+  document.querySelectorAll(".yns").forEach(function (group) {
+    group.querySelectorAll(".yb").forEach(function (btn) {
+      function activate(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var val = btn.getAttribute("data-yn") || (btn.classList.contains("yes") ? "yes" : "no");
+        group.querySelectorAll(".yb").forEach(function (b) { b.classList.remove("on"); });
+        btn.classList.add("on");
+      }
+      btn.addEventListener("click", activate);
+      btn.addEventListener("touchend", activate, { passive: false });
+    });
+  });
+}
+
+function clearAllOuiNon() {
+  document.querySelectorAll(".yns .yb.on").forEach(function (b) { b.classList.remove("on"); });
+  ["q0","q1","q2"].forEach(function (id) { var el = $(id); if (el) el.value = ""; });
 }
 
 /* ---- Counters ---- */
@@ -1475,42 +1575,21 @@ function clampCounterInput(el) {
 }
 
 /* ---- Checklist toggles ---- */
-function buildChecklist(containerId, items) {
-  var box = $(containerId);
-  if (!box) return;
-  box.innerHTML = items.map(function (it) {
-    return '<div class="check-item" data-id="' + it.id + '">' +
-      '<span class="check-label">' + esc(it.label) + '</span>' +
-      '<div class="toggle-pair">' +
-      '<button type="button" class="toggle-btn oui" data-val="oui">Oui</button>' +
-      '<button type="button" class="toggle-btn non" data-val="non">Non</button>' +
-      '</div></div>';
-  }).join("");
-  box.querySelectorAll(".toggle-btn").forEach(function (btn) {
-    function activate(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var pair = btn.parentElement;
-      pair.querySelectorAll(".toggle-btn").forEach(function (b) { b.classList.remove("active"); });
-      btn.classList.add("active");
-    }
-    btn.addEventListener("click", activate);
-    btn.addEventListener("touchend", activate, { passive: false });
-  });
+function checklistVal(id) {
+  var map = {
+    cl_propre: "y0", cl_niveau: "y3", cl_test: "y2", cl_buses: "y4",
+    cl_filtre: "y7", cl_lingettes: "y8", cl_tapis: "y9", cl_hygiene: "y10",
+    cl_piece: "__pieces__", cl_bloque: "y12", cl_flagship: "y14"
+  };
+  var key = map[id] || id;
+  if (key === "__pieces__") {
+    var p = ($("piecesReplaced") && $("piecesReplaced").value || "").trim();
+    return p ? "Oui" : "—";
+  }
+  if (/^y\d+$/.test(key)) return gyn(key);
+  return "—";
 }
 
-function getChecklistState(containerId) {
-  var items = [];
-  var box = $(containerId);
-  if (!box) return items;
-  box.querySelectorAll(".check-item").forEach(function (row) {
-    var oui = row.querySelector(".toggle-btn.oui.active");
-    var non = row.querySelector(".toggle-btn.non.active");
-    var val = oui ? "Oui" : (non ? "Non" : "—");
-    items.push({ id: row.getAttribute("data-id"), label: row.querySelector(".check-label").textContent, value: val });
-  });
-  return items;
-}
 
 /* ---- Android WebView bridge detect ---- */
 (function () {
@@ -1795,9 +1874,17 @@ function setOuiNon(form, ouiName, nonName, val) {
 }
 
 function setVisitType(form, visitType) {
-  var map = { "préventive": "Service", "preventive": "Service", "curative": "Panne", "installation": "Installation", "autre": "Echange" };
+  var map = {
+    "préventive": "Service", "preventive": "Service", "Service": "Service",
+    "curative": "Panne", "Panne": "Panne",
+    "installation": "Installation", "Installation": "Installation",
+    "autre": "Echange", "Echange": "Echange", "Échange": "Echange",
+    "Enlevement": "Enlevement", "Enlèvement": "Enlevement"
+  };
   var names = ["Service", "Panne", "Installation", "Echange", "Enlevement"];
-  var target = map[visitType] || map[fold(visitType)] || null;
+  var target = map[visitType] || map[fold(visitType)] || CURRENT_VISIT_TYPE || "Service";
+  if (target === "Échange") target = "Echange";
+  if (target === "Enlèvement") target = "Enlevement";
   names.forEach(function (n) {
     try {
       var cb = form.getCheckBox(n);
@@ -1951,7 +2038,7 @@ async function genPDF() {
     return;
   }
   var dateVal = $("svcDate").value || todayISO();
-  var visitType = $("visitType").value;
+  var visitType = ($("visitType").value || CURRENT_VISIT_TYPE || "Service").trim();
   var oldLvl = parseLiters($("oldLevel").value);
   if (isNaN(oldLvl)) oldLvl = 0;
   oldLvl = Math.min(20, Math.max(0, oldLvl));
@@ -1967,75 +2054,82 @@ async function genPDF() {
     var form = pdfDoc.getForm();
 
     setVisitType(form, visitType);
-    filled.push("visitType→" + (visitType === "préventive" || visitType === "preventive" ? "Service" : visitType === "curative" ? "Panne" : visitType === "installation" ? "Installation" : "Echange"));
+    filled.push("visitType→" + visitType);
 
     var addrFull = [shop.addr, ((shop.cp || "") + " " + (shop.city || "")).trim()].filter(Boolean).join(", ");
     safeSetText(form, "Text1", shop.name, filled);
     safeSetText(form, "Text2", addrFull, filled);
-    safeSetText(form, "Counter Number  numéro de compteur", shop.sn || "", filled);
+    safeSetText(form, "Counter Number  numéro de compteur", shop.counter || shop.sn || "", filled);
     safeSetText(form, "Serial Number  Numéro de série", shop.sn || "", filled);
-    safeSetText(form, "Ancien niveau de liquide avant le", oldLvl.toFixed(1) + " L", filled);
+    safeSetText(form, "Ancien niveau de liquide avant le", oldLvl.toFixed(3).replace(".", ",") + " L", filled);
     safeSetText(form, "Nome du technician", tech, filled);
     safeSetText(form, "Date4_af_date", formatDateFR(dateVal), filled);
 
     var obs = ($("obsPanne").value || "").trim();
-    safeSetText(form, "Veuillez écrire ici tout autre commentaire ou observation", obs, filled);
-    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", obs, filled);
-    safeSetText(form, "Avez-vous remplacé des pièces?", checklistVal("cl_piece") === "Oui" ? "Oui — voir observations" : (checklistVal("cl_piece") === "Non" ? "Non" : obs || ""), filled);
+    var pieces = ($("piecesReplaced") && $("piecesReplaced").value || "").trim();
+    var comments = ($("techComments") && $("techComments").value || "").trim();
+    safeSetText(form, "Veuillez écrire ici tout autre commentaire ou observation", comments || obs, filled);
+    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", [obs, pieces].filter(Boolean).join("\n"), filled);
+    safeSetText(form, "Avez-vous remplacé des pièces?", pieces ? ("Oui — " + pieces) : (gyn("y12") === "Non" ? "Non" : ""), filled);
 
-    /* SERVICE Oui/Non pairs */
+    /* SERVICE Oui/Non pairs — Netlify y0..y11 order */
     var pairs = [
-      ["Check Box12", "Check Box13", "cl_propre"],
-      ["Check Box14", "Check Box15", "cl_niveau"],
-      ["Check Box16", "Check Box17", "cl_test"],
-      ["Check Box18", "Check Box19", "cl_niveau"],
-      ["Check Box20", "Check Box21", "cl_buses"],
-      ["Check Box25", "Check Box26", "cl_buses"],
-      ["Check Box27", "Check Box28", "cl_buses"],
-      ["Check Box29", "Check Box30", "cl_filtre"],
-      ["Check Box31", "Check Box32", "cl_lingettes"],
-      ["Check Box33", "Check Box34", "cl_tapis"],
-      ["Check Box38", "Check Box39", "cl_propre"],
-      ["Check Box40", "Check Box41", "__photos__"]
+      ["Check Box12", "Check Box13", "y0"],
+      ["Check Box14", "Check Box15", "y1"],
+      ["Check Box16", "Check Box17", "y2"],
+      ["Check Box18", "Check Box19", "y3"],
+      ["Check Box20", "Check Box21", "y4"],
+      ["Check Box25", "Check Box26", "y5"],
+      ["Check Box27", "Check Box28", "y6"],
+      ["Check Box29", "Check Box30", "y7"],
+      ["Check Box31", "Check Box32", "y8"],
+      ["Check Box33", "Check Box34", "y9"],
+      ["Check Box38", "Check Box39", "y10"],
+      ["Check Box40", "Check Box41", "y11"]
     ];
     pairs.forEach(function (p) {
-      var val;
-      if (p[2] === "__photos__") {
+      var val = gyn(p[2]);
+      if (p[2] === "y11" && val === "—") {
         var hasPhotos = mediaStore.some(function (m) { return !m.isVideo; });
         val = hasPhotos ? "Oui" : "Non";
-      } else {
-        val = checklistVal(p[2]);
-        if (p[0] === "Check Box38" && val === "—") val = checklistVal("cl_hygiene");
       }
       if (setOuiNon(form, p[0], p[1], val)) filled.push(p[0] + "/" + p[1] + "=" + val);
       else gaps.push(p[0]);
     });
 
+    /* Qty texts if present on template */
+    safeSetText(form, "Text7", ($("q0") && $("q0").value) || "", filled);
+    safeSetText(form, "Text8", ($("q1") && $("q1").value) || "", filled);
+    safeSetText(form, "Text9", ($("q2") && $("q2").value) || "", filled);
+
     /* PANNE */
-    var isCurative = visitType === "curative";
-    var bloque = checklistVal("cl_bloque");
-    var repaired = (isCurative && bloque !== "Oui") ? "Oui" : (isCurative && bloque === "Oui" ? "Non" : "—");
+    var repaired = gyn("y12");
     if (setOuiNon(form, "Check Box22", "Check Box24", repaired)) filled.push("Check Box22/24=" + repaired);
-    var piece = checklistVal("cl_piece");
-    if (setOuiNon(form, "Check Box48", "Check Box49", piece)) filled.push("Check Box48/49=" + piece);
+    var pieceYN = pieces ? "Oui" : "—";
+    if (setOuiNon(form, "Check Box48", "Check Box49", pieceYN)) filled.push("Check Box48/49=" + pieceYN);
 
-    /* INSTALLATION / FLAGSHIP / network — best-effort from cl_flagship */
-    var flag = checklistVal("cl_flagship");
-    if (flag === "Oui" || flag === "Non") {
-      setOuiNon(form, "Check Box42", "Check Box43", flag);
-      setOuiNon(form, "Check Box44", "Check Box45", flag);
-      setOuiNon(form, "Check Box46", "Check Box47", flag);
-      filled.push("Check Box42-47←cl_flagship=" + flag);
-    } else {
-      gaps.push("LTE/WiFi (pas de reseau dans HTML)");
-    }
+    /* Circuit imprimé */
+    safeSetText(form, "Entrez le numéro de série du nouveau circuit imprimé", ($("ciSn") && $("ciSn").value) || "", filled);
+    safeSetText(form, "Compteur circuit imprimé", ($("ciCtr") && $("ciCtr").value) || "", filled);
+    safeSetText(form, "N de téléphone du nouveau c imprimé", ($("ciTel") && $("ciTel").value) || "", filled);
+    safeSetText(form, "N° de téléphone du nouveau c. imprimé", ($("ciTel") && $("ciTel").value) || "", filled);
+    if (setOuiNon(form, "Check Box50", "Check Box51", gyn("y13"))) filled.push("CI photo y13");
 
-    if (visitType === "installation" || visitType === "autre") {
-      safeSetText(form, "Entrez le numéro de série de la nouvelle unité", shop.sn || "", filled);
-      safeSetText(form, "Entrez le numéro de compteur de la nouvelle unité", shop.sn || "", filled);
-    }
+    /* FLAGSHIP */
+    safeSetText(form, "Version du Software", ($("swVersion") && $("swVersion").value) || "", filled);
+    safeSetText(form, "Niveau de fluide 2", ($("fluid2") && $("fluid2").value) || "", filled);
+    setOuiNon(form, "Check Box42", "Check Box43", gyn("y14"));
+    setOuiNon(form, "Check Box44", "Check Box45", gyn("y15"));
+    setOuiNon(form, "Check Box46", "Check Box47", gyn("y16"));
+    filled.push("Flagship LTE/WiFi/photos=" + [gyn("y14"), gyn("y15"), gyn("y16")].join("/"));
 
-    /* Counters into Text4/5/6 if useful */
+    /* Exchange / Enlèvement */
+    safeSetText(form, "Entrez le numéro de série de l'unité enlevée", ($("remSn") && $("remSn").value) || "", filled);
+    safeSetText(form, "Entrez le numéro de compteur de l'unité enlevée", ($("remCtr") && $("remCtr").value) || "", filled);
+    safeSetText(form, "Entrez le numéro de série de la nouvelle unité", ($("newSn") && $("newSn").value) || "", filled);
+    safeSetText(form, "Entrez le numéro de compteur de la nouvelle unité", ($("newCtr") && $("newCtr").value) || "", filled);
+
+    /* Consommables Text4/5/6 */
     safeSetText(form, "Text4", $("cntTapisAv").value || "0", filled);
     safeSetText(form, "Text5", $("cntTapisAr").value || "0", filled);
     safeSetText(form, "Text6", $("cntLingettes").value || "0", filled);
@@ -2094,18 +2188,21 @@ function resetForm() {
   clearShop();
   $("svcDate").value = todayISO();
   $("techName").value = "";
-  $("visitType").value = "préventive";
+  setVisitTypeUI("Service");
   $("oldLevel").value = "0";
   updateAdded();
   $("cntTapisAv").value = "0";
   $("cntTapisAr").value = "0";
   $("cntLingettes").value = "0";
   $("obsPanne").value = "";
+  if ($("piecesReplaced")) $("piecesReplaced").value = "";
+  if ($("techComments")) $("techComments").value = "";
+  ["ciSn","ciCtr","ciTel","swVersion","fluid2","remSn","remCtr","newSn","newCtr"].forEach(function (id) {
+    var el = $(id); if (el) el.value = "";
+  });
+  clearAllOuiNon();
   mediaStore = [];
   renderMedia();
-  buildChecklist("cl-service", CHECKLISTS.service);
-  buildChecklist("cl-panne", CHECKLISTS.panne);
-  buildChecklist("cl-ci", CHECKLISTS.ci);
   clearSignature();
   toast("Formulaire reinitialise", "ok");
 }
@@ -2120,9 +2217,14 @@ function init() {
     }
     unlockShopFields();
     $("svcDate").value = todayISO();
-    buildChecklist("cl-service", CHECKLISTS.service);
-    buildChecklist("cl-panne", CHECKLISTS.panne);
-    buildChecklist("cl-ci", CHECKLISTS.ci);
+    setVisitTypeUI("Service");
+    bindOuiNonToggles();
+    document.querySelectorAll("#visitTypes .tb").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        setVisitTypeUI(btn.getAttribute("data-type") || "Service");
+      });
+    });
 
     var searchTimer = null;
     $("shopSearch").addEventListener("input", function () {
