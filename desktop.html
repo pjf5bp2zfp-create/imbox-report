@@ -2091,8 +2091,9 @@ async function genPDF() {
     var pieces = ($("piecesReplaced") && $("piecesReplaced").value || "").trim();
     var comments = ($("techComments") && $("techComments").value || "").trim();
     safeSetText(form, "Veuillez écrire ici tout autre commentaire ou observation", comments || obs, filled);
-    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", [obs, pieces].filter(Boolean).join("\n"), filled);
-    safeSetText(form, "Avez-vous remplacé des pièces?", pieces ? ("Oui — " + pieces) : (gyn("y12") === "Non" ? "Non" : ""), filled);
+    /* Pièces: liste UNE seule fois dans « Lesquels » ; Oui/Non seul dans la case question (évite doublon PDF). */
+    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", pieces, filled);
+    safeSetText(form, "Avez-vous remplacé des pièces?", pieces ? "Oui" : (gyn("y12") === "Non" ? "Non" : ""), filled);
 
     /* SERVICE Oui/Non pairs — Netlify y0..y11 order */
     var pairs = [
