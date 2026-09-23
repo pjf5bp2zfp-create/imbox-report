@@ -444,9 +444,8 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
 </header>
 
 <div id="cdnBanner" role="status">
-  ⚠️ <strong>jsPDF non chargé</strong> — le PDF ne peut pas être généré.
-  Réessayez avec une connexion, ou rouvrez la version corrigée (jsPDF embarqué).
-  Astuce : Netlify Drop / serveur HTTP si le fichier a été tronqué à l’envoi WhatsApp.
+  ⚠️ <strong>pdf-lib / modèle CAPS non chargé</strong> — le PDF officiel ne peut pas être généré.
+  Vérifiez que <code>pdf-lib.min.js</code> et <code>imbox-officiel-modele.pdf</code> sont à côté de cette page.
 </div>
 
 <div class="wrap">
@@ -1056,6 +1055,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   document.head.appendChild(s);
 })();
 </script>
+<script src="pdf-lib.min.js"></script>
 
 <script>
 /* ============================================================
@@ -1731,34 +1731,201 @@ function getSignatureDataUrl() {
   return $("sigCanvas").toDataURL("image/png");
 }
 
+/* ---- PDF generation (official CAPS AcroForm + medias annex) ---- */
+function pdfLibReady() {
+  return !!(window.PDFLib && window.PDFLib.PDFDocument);
+}
+
 function jspdfReady() {
-  return !!(window.jspdf && window.jspdf.jsPDF) || typeof window.jsPDF === "function";
+  /* legacy helper kept; primary path uses pdf-lib */
+  return pdfLibReady() || !!(window.jspdf && window.jspdf.jsPDF) || typeof window.jsPDF === "function";
 }
 
 function updateCdnBanner() {
   var ban = $("cdnBanner");
   var btn = $("btnPdf");
-  if (!jspdfReady()) {
+  if (!pdfLibReady()) {
     if (ban) { ban.className = "show"; ban.style.display = "block"; }
     if (btn) {
-      btn.title = "jsPDF non chargé — voir bandeau jaune";
+      btn.title = "pdf-lib non chargé — voir bandeau";
       btn.classList.add("disabled-look");
     }
   } else {
     if (ban) { ban.className = ""; ban.style.display = "none"; }
     if (btn) {
-      btn.title = "Générer le PDF du rapport";
+      btn.title = "Générer le PDF du rapport (modèle officiel CAPS)";
       btn.classList.remove("disabled-look");
     }
   }
 }
 
-/* ---- PDF generation ---- */
-function genPDF() {
+function checklistVal(id) {
+  var items = getChecklistState("cl-service")
+    .concat(getChecklistState("cl-panne"))
+    .concat(getChecklistState("cl-ci"));
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].id === id) return items[i].value;
+  }
+  return "—";
+}
+
+function setOuiNon(form, ouiName, nonName, val) {
+  try {
+    var oui = form.getCheckBox(ouiName);
+    var non = form.getCheckBox(nonName);
+    if (val === "Oui") { oui.check(); non.uncheck(); }
+    else if (val === "Non") { oui.uncheck(); non.check(); }
+    else { oui.uncheck(); non.uncheck(); }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function setVisitType(form, visitType) {
+  var map = { "préventive": "Service", "preventive": "Service", "curative": "Panne", "installation": "Installation", "autre": "Echange" };
+  var names = ["Service", "Panne", "Installation", "Echange", "Enlevement"];
+  var target = map[visitType] || map[fold(visitType)] || null;
+  names.forEach(function (n) {
+    try {
+      var cb = form.getCheckBox(n);
+      if (target && n === target) cb.check(); else cb.uncheck();
+    } catch (e) {}
+  });
+}
+
+function safeSetText(form, name, value, filled) {
+  try {
+    var tf = form.getTextField(name);
+    var v = value == null ? "" : String(value);
+    if (v.length > 500) v = v.substring(0, 500);
+    tf.setText(v);
+    if (filled) filled.push(name);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function dataUrlToUint8(dataUrl) {
+  var comma = dataUrl.indexOf(",");
+  var b64 = comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl;
+  var bin = atob(b64);
+  var len = bin.length;
+  var bytes = new Uint8Array(len);
+  for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function uint8ToBase64(u8) {
+  var CHUNK = 0x8000;
+  var parts = [];
+  for (var i = 0; i < u8.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, u8.subarray(i, i + CHUNK)));
+  }
+  return btoa(parts.join(""));
+}
+
+async function appendMediasPage(pdfDoc, PDFLib) {
+  var photos = mediaStore.filter(function (m) { return !m.isVideo; });
+  var videos = mediaStore.filter(function (m) { return m.isVideo; });
+  /* A4 landscape (same as CAPS template) */
+  var page = pdfDoc.addPage([841.89, 595.28]);
+  var W = page.getWidth();
+  var H = page.getHeight();
+  var M = 36;
+  var y = H - M;
+  var helv = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+  var helvBold = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  page.drawText("Photos et videos", { x: M, y: y - 18, size: 18, font: helvBold, color: PDFLib.rgb(0.1, 0.37, 0.66) });
+  y -= 36;
+  if (!photos.length && !videos.length) {
+    page.drawText("Aucun media joint.", { x: M, y: y, size: 11, font: helv, color: PDFLib.rgb(0.4, 0.4, 0.45) });
+    return;
+  }
+  if (photos.length) {
+    var colW = (W - 2 * M - 16) / 2;
+    var imgH = 160;
+    var col = 0;
+    for (var i = 0; i < photos.length; i++) {
+      if (col === 0 && y < M + imgH + 40) {
+        page = pdfDoc.addPage([841.89, 595.28]);
+        W = page.getWidth(); H = page.getHeight();
+        y = H - M;
+        page.drawText("Photos et videos (suite)", { x: M, y: y - 16, size: 14, font: helvBold, color: PDFLib.rgb(0.1, 0.37, 0.66) });
+        y -= 32;
+      }
+      var xPos = M + col * (colW + 16);
+      var data = photos[i].dataUrl;
+      try {
+        if (data && data.indexOf("data:image/") === 0) {
+          var bytes = dataUrlToUint8(data);
+          var img;
+          if (data.indexOf("image/png") >= 0) img = await pdfDoc.embedPng(bytes);
+          else img = await pdfDoc.embedJpg(bytes);
+          var iw = img.width, ih = img.height;
+          var scale = Math.min(colW / iw, imgH / ih);
+          var dw = iw * scale, dh = ih * scale;
+          page.drawImage(img, { x: xPos, y: y - dh, width: dw, height: dh });
+          var label = (photos[i].name || "photo").substring(0, 40);
+          page.drawText(label, { x: xPos, y: y - dh - 12, size: 8, font: helv, color: PDFLib.rgb(0.4, 0.4, 0.45) });
+        }
+      } catch (errEmb) {
+        page.drawText("(photo non integrable)", { x: xPos, y: y - 20, size: 9, font: helv, color: PDFLib.rgb(0.8, 0.2, 0.2) });
+      }
+      col++;
+      if (col === 2 || i === photos.length - 1) {
+        y -= imgH + 28;
+        col = 0;
+      }
+    }
+  }
+  if (videos.length) {
+    if (y < M + 60) {
+      page = pdfDoc.addPage([841.89, 595.28]);
+      W = page.getWidth(); H = page.getHeight();
+      y = H - M;
+    }
+    page.drawText("Videos (non integrees — trop volumineuses) :", { x: M, y: y, size: 11, font: helvBold, color: PDFLib.rgb(0.4, 0.4, 0.45) });
+    y -= 18;
+    for (var vi = 0; vi < videos.length; vi++) {
+      if (y < M + 20) {
+        page = pdfDoc.addPage([841.89, 595.28]);
+        y = page.getHeight() - M;
+      }
+      var v = videos[vi];
+      var line = "- " + (v.name || "video") + " (" + Math.round((v.size || 0) / 1024) + " Ko)";
+      page.drawText(line.substring(0, 120), { x: M + 8, y: y, size: 10, font: helv, color: PDFLib.rgb(0.15, 0.15, 0.2) });
+      y -= 14;
+    }
+  }
+}
+
+async function downloadPdfBytes(bytes, fname) {
+  if (window.ImboxAndroid && typeof window.ImboxAndroid.saveBase64 === "function") {
+    var b64 = uint8ToBase64(bytes);
+    window.ImboxAndroid.saveBase64(b64, fname, "application/pdf");
+    toast("PDF enregistre : " + fname, "ok");
+    return;
+  }
+  var blob = new Blob([bytes], { type: "application/pdf" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () {
+    try { URL.revokeObjectURL(url); } catch (e) {}
+    try { a.remove(); } catch (e2) {}
+  }, 2000);
+  toast("PDF genere : " + fname, "ok");
+}
+
+async function genPDF() {
   updateCdnBanner();
-  if (!jspdfReady()) {
-    updateCdnBanner();
-    toast("PDF impossible : jsPDF absent (fichier tronqué ?). Rouvrez la version corrigée.", "err");
+  if (!pdfLibReady()) {
+    toast("PDF impossible : pdf-lib absent. Verifiez pdf-lib.min.js.", "err");
     return;
   }
   var shop = selectedShop || shopFromFields();
@@ -1776,372 +1943,136 @@ function genPDF() {
   var oldLvl = parseLiters($("oldLevel").value);
   if (isNaN(oldLvl)) oldLvl = 0;
   oldLvl = Math.min(20, Math.max(0, oldLvl));
-  var added = Math.max(0, +(20 - oldLvl).toFixed(1));
-  var fluidLabel = shop.fluidLabel || ($("shopFluid").value || "") || ((shop.fluidMl || 20000) / 1000) + " L";
+  var filled = [];
+  var gaps = [];
 
-  var jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  var doc = new jsPDFCtor({ orientation: "portrait", unit: "mm", format: "a4" });
-  var W = 210, H = 297, M = 14;
-  var y = M;
-  var blue = [26, 95, 168];
-  var green = [29, 158, 117];
-  var red = [226, 75, 74];
-  var gray = [100, 110, 120];
-
-  function ensureSpace(need) {
-    if (y + need > H - 18) {
-      doc.addPage();
-      y = M;
-    }
-  }
-  function drawFooter() {
-    var page = doc.internal.getNumberOfPages();
-    doc.setFontSize(7.5);
-    doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.setFont("helvetica", "normal");
-    var foot = (shop.name || "") + "  ·  " + (shop.sn || "") + "  ·  " +
-      formatDateFR(dateVal) + "  ·  " + tech;
-    doc.text(foot, M, H - 8);
-    doc.text("Page " + page, W - M, H - 8, { align: "right" });
-  }
-  function sectionTitle(title) {
-    ensureSpace(12);
-    doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.roundedRect(M, y, W - 2 * M, 7.5, 1, 1, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text(title, M + 3, y + 5.2);
-    y += 11;
-    doc.setTextColor(30, 30, 40);
-  }
-  function kv(label, value, x, yy) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.text(label, x, yy);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.setTextColor(30, 30, 40);
-    doc.text(String(value == null || value === "" ? "—" : value), x, yy + 4.5);
-  }
-  function badge(txt, isOui, x, yy) {
-    var col = isOui ? green : (txt === "Non" ? red : gray);
-    var tw = doc.getTextWidth(txt) + 4;
-    doc.setFillColor(col[0], col[1], col[2]);
-    doc.roundedRect(x, yy - 3.5, Math.max(tw, 14), 5.5, 1, 1, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text(txt, x + Math.max(tw, 14) / 2, yy, { align: "center" });
-    doc.setTextColor(30, 30, 40);
-  }
-
-  /* Header */
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(0, 0, W, 28, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("IMBOX Report", M, 14);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("CAPS Group — France STC Nord", M, 21);
-  doc.setFontSize(8);
-  doc.text("Rapport de maintenance", W - M, 14, { align: "right" });
-  doc.text(formatDateFR(dateVal), W - M, 21, { align: "right" });
-  y = 34;
-
-  /* Magasin */
-  sectionTitle("Magasin");
-  kv("Nom", shop.name, M, y);
-  kv("N de serie", shop.sn || "—", M + 95, y);
-  y += 12;
-  kv("Adresse", shop.addr || "—", M, y);
-  kv("Ville / CP", ((shop.cp || "") + " " + (shop.city || "")).trim() || "—", M + 95, y);
-  y += 12;
-  kv("Telephone", shop.phone || "—", M, y);
-  kv("Frequence", shop.freq || "—", M + 95, y);
-  y += 12;
-  kv("Fluide", fluidLabel, M, y);
-  kv("Derniere visite", shop.lastVisit || ($("shopLast").value || "—"), M + 55, y);
-  kv("Prochaine visite", shop.nextVisit || ($("shopNext").value || "—"), M + 120, y);
-  y += 14;
-
-  /* Service */
-  sectionTitle("Service");
-  kv("Date", formatDateFR(dateVal), M, y);
-  kv("Technicien", tech, M + 55, y);
-  kv("Type de visite", visitType.charAt(0).toUpperCase() + visitType.slice(1), M + 120, y);
-  y += 12;
-  kv("Niveau avant", oldLvl.toFixed(1) + " L", M, y);
-  kv("Volume ajoute", added.toFixed(1) + " L", M + 55, y);
-  kv("Capacite max", "20.0 L", M + 120, y);
-  y += 12;
-  kv("Tapis avant", $("cntTapisAv").value + " / 14", M, y);
-  kv("Tapis arriere", $("cntTapisAr").value + " / 7", M + 55, y);
-  kv("Boites lingettes", $("cntLingettes").value + " / 2", M + 120, y);
-  y += 14;
-
-  /* Checklist Service */
-  var svcItems = getChecklistState("cl-service");
-  sectionTitle("Checklist — Controle machine");
-  svcItems.forEach(function (it) {
-    ensureSpace(8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 40);
-    doc.text(it.label, M, y);
-    badge(it.value, it.value === "Oui", W - M - 18, y);
-    y += 7;
-  });
-  y += 4;
-
-  /* Panne */
-  var panneItems = getChecklistState("cl-panne");
-  sectionTitle("Panne / Anomalies");
-  panneItems.forEach(function (it) {
-    ensureSpace(8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 40);
-    doc.text(it.label, M, y);
-    badge(it.value, it.value === "Oui", W - M - 18, y);
-    y += 7;
-  });
-  var obs = ($("obsPanne").value || "").trim();
-  if (obs) {
-    ensureSpace(20);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.text("Observations / description panne", M, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 40);
-    var lines = doc.splitTextToSize(obs, W - 2 * M);
-    ensureSpace(lines.length * 4.5 + 4);
-    doc.text(lines, M, y);
-    y += lines.length * 4.5 + 4;
-  }
-  y += 2;
-
-  /* CI / Flagship */
-  var ciItems = getChecklistState("cl-ci");
-  sectionTitle("CI / Flagship");
-  ciItems.forEach(function (it) {
-    ensureSpace(8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 40);
-    doc.text(it.label, M, y);
-    badge(it.value, it.value === "Oui", W - M - 18, y);
-    y += 7;
-  });
-  y += 4;
-
-  /* Technicien / Signature */
-  sectionTitle("Technicien");
-  ensureSpace(50);
-  kv("Nom", tech, M, y);
-  kv("Type", visitType.charAt(0).toUpperCase() + visitType.slice(1), M + 70, y);
-  y += 12;
-
-  var sig = getSignatureDataUrl();
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(gray[0], gray[1], gray[2]);
-  doc.text("Signature", M, y);
-  doc.text("Cachet CAPS", M + 100, y);
-  y += 3;
-  if (sig) {
-    try { doc.addImage(sig, "PNG", M, y, 70, 28); } catch (e1) {}
-  } else {
-    doc.setDrawColor(200, 200, 200);
-    doc.rect(M, y, 70, 28);
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8);
-    doc.setTextColor(160, 160, 160);
-    doc.text("Non signe", M + 22, y + 16);
-  }
-  doc.setDrawColor(blue[0], blue[1], blue[2]);
-  doc.setLineWidth(0.6);
-  doc.roundedRect(M + 100, y, 72, 28, 2, 2, "S");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(blue[0], blue[1], blue[2]);
-  doc.text("CAPS Group", M + 136, y + 11, { align: "center" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.text("France STC Nord", M + 136, y + 17, { align: "center" });
-  doc.text("IMBOX Maintenance", M + 136, y + 22.5, { align: "center" });
-  y += 34;
-
-  /* Zone client (AcroForm — modifiable dans Adobe Reader / editeur PDF) */
-  ensureSpace(60);
-  sectionTitle("Zone client (modifiable)");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(gray[0], gray[1], gray[2]);
-  doc.text("Le client peut remplir ces champs dans Adobe Reader / un editeur PDF.", M, y);
-  y += 6;
-
-  var TF = jsPDFCtor.AcroFormTextField || (jsPDFCtor.AcroForm && jsPDFCtor.AcroForm.TextField);
-  var CB = jsPDFCtor.AcroFormCheckBox || (jsPDFCtor.AcroForm && jsPDFCtor.AcroForm.CheckBox);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(gray[0], gray[1], gray[2]);
-  doc.text("Nom / visa client", M, y);
-  y += 2;
-  if (TF) {
-    var tfNom = new TF();
-    tfNom.fieldName = "client_nom";
-    tfNom.Rect = [M, y, W - 2 * M, 8];
-    tfNom.value = "";
-    doc.addField(tfNom);
-  }
-  y += 12;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(gray[0], gray[1], gray[2]);
-  doc.text("Commentaire client", M, y);
-  y += 2;
-  ensureSpace(32);
-  if (TF) {
-    var tfCom = new TF();
-    tfCom.fieldName = "client_commentaire";
-    tfCom.Rect = [M, y, W - 2 * M, 28];
-    tfCom.multiline = true;
-    tfCom.value = "";
-    doc.addField(tfCom);
-  }
-  y += 32;
-
-  ensureSpace(14);
-  if (CB) {
-    var cbOk = new CB();
-    cbOk.fieldName = "client_ok";
-    cbOk.Rect = [M, y, 6, 6];
-    cbOk.value = "Off";
-    doc.addField(cbOk);
-  }
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 30, 40);
-  doc.text("Intervention OK", M + 9, y + 4.5);
-
-  if (CB) {
-    var cbRes = new CB();
-    cbRes.fieldName = "client_reserves";
-    cbRes.Rect = [M + 70, y, 6, 6];
-    cbRes.value = "Off";
-    doc.addField(cbRes);
-  }
-  doc.text("Avec reserves", M + 79, y + 4.5);
-  y += 12;
-
-  /* Annex: Photos et videos (page dediee) */
-  doc.addPage();
-  y = M;
-  sectionTitle("Photos et videos");
-  var photos = mediaStore.filter(function (m) { return !m.isVideo; });
-  var videos = mediaStore.filter(function (m) { return m.isVideo; });
-  if (!photos.length && !videos.length) {
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(9);
-    doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.text("Aucun media joint.", M, y);
-    y += 8;
-  } else {
-    if (photos.length) {
-      var colW = (W - 2 * M - 4) / 2;
-      var imgH = 42;
-      for (var i = 0; i < photos.length; i++) {
-        if (i % 2 === 0) ensureSpace(imgH + 8);
-        var xPos = M + (i % 2) * (colW + 4);
-        var embedded = false;
-        var data = photos[i].dataUrl;
-        // Prefer JPEG; if PNG/WebP data URL, try re-encode via canvas
-        try {
-          if (data && data.indexOf("data:image/jpeg") !== 0 && data.indexOf("data:image/jpg") !== 0) {
-            try {
-              var im = null;
-              // sync re-encode only works if already loaded; skip — use JPEG path from compress
-            } catch (re) {}
-          }
-          var fmt = (photos[i].type && photos[i].type.indexOf("png") !== -1 && data.indexOf("image/png") !== -1) ? "PNG" : "JPEG";
-          // Force JPEG format string when dataUrl is jpeg (jsPDF is picky)
-          if (data && data.indexOf("data:image/jpeg") === 0) fmt = "JPEG";
-          if (data && data.indexOf("data:image/png") === 0) fmt = "PNG";
-          doc.addImage(data, fmt, xPos, y, colW, imgH, undefined, "FAST");
-          embedded = true;
-        } catch (err1) {
-          try {
-            doc.addImage(data, "JPEG", xPos, y, colW, imgH);
-            embedded = true;
-          } catch (err2) {
-            embedded = false;
-          }
-        }
-        if (!embedded) {
-          doc.setFontSize(8);
-          doc.setTextColor(red[0], red[1], red[2]);
-          doc.text("(photo non integrable)", xPos, y + 10);
-        }
-        doc.setFontSize(7);
-        doc.setTextColor(gray[0], gray[1], gray[2]);
-        var label = photos[i].name.substring(0, 36);
-        if (photos[i].compressed) label += " ✓";
-        doc.text(label, xPos, y + imgH + 3.5);
-        if (i % 2 === 1 || i === photos.length - 1) y += imgH + 8;
-      }
-    }
-    if (videos.length) {
-      ensureSpace(8 + videos.length * 5);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(gray[0], gray[1], gray[2]);
-      doc.text("Videos (non integrees — trop volumineuses) :", M, y);
-      y += 5;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(30, 30, 40);
-      videos.forEach(function (v) {
-        ensureSpace(5);
-        doc.text("- " + v.name + " (" + Math.round(v.size / 1024) + " Ko)", M + 2, y);
-        y += 5;
-      });
-    }
-  }
-
-  var total = doc.internal.getNumberOfPages();
-  for (var p = 1; p <= total; p++) {
-    doc.setPage(p);
-    drawFooter();
-  }
-
-  var fname = "IMBOX_" + (shop.sn || "report").replace(/[^\w\-]+/g, "_") + "_" + dateVal + ".pdf";
   try {
-    if (window.ImboxAndroid && typeof window.ImboxAndroid.saveBase64 === "function") {
-      var dataUri = doc.output("datauristring");
-      var b64 = "";
-      if (typeof dataUri === "string") {
-        var comma = dataUri.indexOf(",");
-        b64 = comma >= 0 ? dataUri.substring(comma + 1) : dataUri;
+    toast("Generation PDF (modele CAPS)…", "ok");
+    var res = await fetch("imbox-officiel-modele.pdf");
+    if (!res.ok) throw new Error("Modele PDF introuvable (" + res.status + ")");
+    var PDFLib = window.PDFLib;
+    var pdfDoc = await PDFLib.PDFDocument.load(await res.arrayBuffer());
+    var form = pdfDoc.getForm();
+
+    setVisitType(form, visitType);
+    filled.push("visitType→" + (visitType === "préventive" || visitType === "preventive" ? "Service" : visitType === "curative" ? "Panne" : visitType === "installation" ? "Installation" : "Echange"));
+
+    var addrFull = [shop.addr, ((shop.cp || "") + " " + (shop.city || "")).trim()].filter(Boolean).join(", ");
+    safeSetText(form, "Text1", shop.name, filled);
+    safeSetText(form, "Text2", addrFull, filled);
+    safeSetText(form, "Counter Number  numéro de compteur", shop.sn || "", filled);
+    safeSetText(form, "Serial Number  Numéro de série", shop.sn || "", filled);
+    safeSetText(form, "Ancien niveau de liquide avant le", oldLvl.toFixed(1) + " L", filled);
+    safeSetText(form, "Nome du technician", tech, filled);
+    safeSetText(form, "Date4_af_date", formatDateFR(dateVal), filled);
+
+    var obs = ($("obsPanne").value || "").trim();
+    safeSetText(form, "Veuillez écrire ici tout autre commentaire ou observation", obs, filled);
+    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", obs, filled);
+    safeSetText(form, "Avez-vous remplacé des pièces?", checklistVal("cl_piece") === "Oui" ? "Oui — voir observations" : (checklistVal("cl_piece") === "Non" ? "Non" : obs || ""), filled);
+
+    /* SERVICE Oui/Non pairs */
+    var pairs = [
+      ["Check Box12", "Check Box13", "cl_propre"],
+      ["Check Box14", "Check Box15", "cl_niveau"],
+      ["Check Box16", "Check Box17", "cl_test"],
+      ["Check Box18", "Check Box19", "cl_niveau"],
+      ["Check Box20", "Check Box21", "cl_buses"],
+      ["Check Box25", "Check Box26", "cl_buses"],
+      ["Check Box27", "Check Box28", "cl_buses"],
+      ["Check Box29", "Check Box30", "cl_filtre"],
+      ["Check Box31", "Check Box32", "cl_lingettes"],
+      ["Check Box33", "Check Box34", "cl_tapis"],
+      ["Check Box38", "Check Box39", "cl_propre"],
+      ["Check Box40", "Check Box41", "__photos__"]
+    ];
+    pairs.forEach(function (p) {
+      var val;
+      if (p[2] === "__photos__") {
+        var hasPhotos = mediaStore.some(function (m) { return !m.isVideo; });
+        val = hasPhotos ? "Oui" : "Non";
+      } else {
+        val = checklistVal(p[2]);
+        if (p[0] === "Check Box38" && val === "—") val = checklistVal("cl_hygiene");
       }
-      if (!b64) throw new Error("PDF base64 vide");
-      window.ImboxAndroid.saveBase64(b64, fname, "application/pdf");
-      toast("PDF enregistre : " + fname, "ok");
+      if (setOuiNon(form, p[0], p[1], val)) filled.push(p[0] + "/" + p[1] + "=" + val);
+      else gaps.push(p[0]);
+    });
+
+    /* PANNE */
+    var isCurative = visitType === "curative";
+    var bloque = checklistVal("cl_bloque");
+    var repaired = (isCurative && bloque !== "Oui") ? "Oui" : (isCurative && bloque === "Oui" ? "Non" : "—");
+    if (setOuiNon(form, "Check Box22", "Check Box24", repaired)) filled.push("Check Box22/24=" + repaired);
+    var piece = checklistVal("cl_piece");
+    if (setOuiNon(form, "Check Box48", "Check Box49", piece)) filled.push("Check Box48/49=" + piece);
+
+    /* INSTALLATION / FLAGSHIP / network — best-effort from cl_flagship */
+    var flag = checklistVal("cl_flagship");
+    if (flag === "Oui" || flag === "Non") {
+      setOuiNon(form, "Check Box42", "Check Box43", flag);
+      setOuiNon(form, "Check Box44", "Check Box45", flag);
+      setOuiNon(form, "Check Box46", "Check Box47", flag);
+      filled.push("Check Box42-47←cl_flagship=" + flag);
     } else {
-      doc.save(fname);
-      toast("PDF genere : " + fname, "ok");
+      gaps.push("LTE/WiFi (pas de reseau dans HTML)");
     }
-  } catch (saveErr) {
-    try { doc.save(fname); toast("PDF genere : " + fname, "ok"); }
-    catch (e2) { toast("Erreur PDF : " + (saveErr && saveErr.message ? saveErr.message : saveErr), "err"); }
+
+    if (visitType === "installation" || visitType === "autre") {
+      safeSetText(form, "Entrez le numéro de série de la nouvelle unité", shop.sn || "", filled);
+      safeSetText(form, "Entrez le numéro de compteur de la nouvelle unité", shop.sn || "", filled);
+    }
+
+    /* Counters into Text4/5/6 if useful */
+    safeSetText(form, "Text4", $("cntTapisAv").value || "0", filled);
+    safeSetText(form, "Text5", $("cntTapisAr").value || "0", filled);
+    safeSetText(form, "Text6", $("cntLingettes").value || "0", filled);
+
+    /* Signature stamp — draw PNG over Cachet et signature widget, leave field empty */
+    try {
+      safeSetText(form, "Cachet et signature", "", null);
+      var sigUrl = getSignatureDataUrl();
+      if (sigUrl) {
+        var sigField = form.getTextField("Cachet et signature");
+        var rect = sigField.acroField.getWidgets()[0].getRectangle();
+        var page0 = pdfDoc.getPage(0);
+        var pngBytes = dataUrlToUint8(sigUrl);
+        var sigImg = await pdfDoc.embedPng(pngBytes);
+        var pad = 2;
+        var maxW = Math.max(10, rect.width - pad * 2);
+        var maxH = Math.max(10, rect.height - pad * 2);
+        var sc = Math.min(maxW / sigImg.width, maxH / sigImg.height);
+        var sw = sigImg.width * sc;
+        var sh = sigImg.height * sc;
+        page0.drawImage(sigImg, {
+          x: rect.x + pad,
+          y: rect.y + pad,
+          width: sw,
+          height: sh
+        });
+        filled.push("signature(drawImage)");
+      } else {
+        gaps.push("signature vide");
+      }
+    } catch (sigErr) {
+      gaps.push("signature: " + (sigErr && sigErr.message ? sigErr.message : sigErr));
+    }
+
+    /* Do NOT flatten — keep AcroForm editable */
+    await appendMediasPage(pdfDoc, PDFLib);
+
+    var outBytes = await pdfDoc.save({ updateFieldAppearances: true });
+    var fname = "IMBOX_" + (shop.sn || "report").replace(/[^\w\-]+/g, "_") + "_" + dateVal + ".pdf";
+    await downloadPdfBytes(outBytes, fname);
+    try {
+      window.__IMBOX_LAST_PDF_FILLED = filled.slice();
+      window.__IMBOX_LAST_PDF_GAPS = gaps.slice();
+      console.log("IMBOX PDF filled:", filled);
+      console.log("IMBOX PDF gaps:", gaps);
+    } catch (eLog) {}
+  } catch (err) {
+    console.error(err);
+    toast("Erreur PDF : " + (err && err.message ? err.message : err), "err");
   }
 }
 
