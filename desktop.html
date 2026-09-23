@@ -238,6 +238,14 @@ header.app-header p { font-size: .78rem; opacity: .88; margin-top: 2px; }
   background: #fafbfc;
 }
 .media-zone input[type=file] { display: none; }
+.media-btns {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.media-btns .media-btn { flex: 1 1 140px; }
+.media-btn-camera { background: #2c5f8a; }
 .media-btn {
   display: inline-flex;
   align-items: center;
@@ -612,8 +620,12 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
   <section class="card" id="sec-media">
     <h2><span class="ico">📷</span> Photos &amp; Vidéos</h2>
     <div class="media-zone">
-      <label class="media-btn" for="mediaInput">📷 Ajouter photos</label>
-      <input type="file" id="mediaInput" accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/*" multiple capture="environment">
+      <div class="media-btns">
+        <label class="media-btn" for="mediaInputGallery">🖼 Galerie</label>
+        <label class="media-btn media-btn-camera" for="mediaInputCamera">📷 Caméra</label>
+      </div>
+      <input type="file" id="mediaInputGallery" accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,video/*" multiple>
+      <input type="file" id="mediaInputCamera" accept="image/*" capture="environment">
       <p class="hint" style="margin-top:8px">Galerie ou appareil photo · max 8 photos compressées (1600px) · vidéos listées par nom</p>
       <p class="media-meta" id="mediaMeta">0 / 8 photos</p>
     </div>
@@ -2173,10 +2185,16 @@ function init() {
       }, 320);
     });
 
-    $("mediaInput").addEventListener("change", function () {
-      handleMediaFiles(this.files);
-      this.value = "";
-    });
+    function bindMediaInput(id) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("change", function () {
+        handleMediaFiles(this.files);
+        this.value = "";
+      });
+    }
+    bindMediaInput("mediaInputGallery");
+    bindMediaInput("mediaInputCamera");
 
     $("sigClear").addEventListener("click", clearSignature);
     $("btnPdf").addEventListener("click", genPDF);
