@@ -548,7 +548,7 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
         <label for="oldLevel">Ancien niveau de liquide (litres)</label>
         <div class="liquid-row">
           <button type="button" class="liq-btn" id="liqMinus" aria-label="Diminuer">−</button>
-          <input type="number" id="oldLevel" min="0" max="20" step="0.001" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="0" placeholder="ex: 14,500" class="editable-num">
+          <input type="text" id="oldLevel" inputmode="decimal" pattern="[0-9]+([\.,][0-9]{0,3})?" autocomplete="off" enterkeyhint="done" value="0" placeholder="ex: 14,500" class="editable-num">
           <button type="button" class="liq-btn" id="liqPlus" aria-label="Augmenter">+</button>
         </div>
         <p class="hint">0 – 20 L · précision 0,001 · boutons ±0,5 L</p>
@@ -1489,8 +1489,8 @@ function updateAdded(opts) {
     return 0;
   }
   if (opts.snap) {
-    /* keep user precision up to 3 decimals */
-    el.value = String(Number(v.toFixed(3))).replace(".", ",");
+    /* keep user precision up to 3 decimals (text input accepts comma) */
+    el.value = v.toFixed(3).replace(".", ",");
   }
   var addedStr = (20 - v).toFixed(3).replace(".", ",") + " L";
   if (addEl) addEl.value = addedStr;
@@ -1505,7 +1505,7 @@ function bumpLiquid(delta) {
   var v = parseLiters(el.value);
   if (isNaN(v)) v = 0;
   v = Math.min(20, Math.max(0, +(v + delta).toFixed(3)));
-  el.value = String(v).replace(".", ",");
+  el.value = v.toFixed(3).replace(".", ",");
   updateAdded();
 }
 
@@ -2144,17 +2144,16 @@ async function genPDF() {
     safeSetText(form, "Text5", $("cntTapisAr").value || "0", filled);
     safeSetText(form, "Text6", $("cntLingettes").value || "0", filled);
 
-    /* Overlay drawn quantities where template has no AcroForm field */
+    /* Filtres qty = fill_51 (AcroForm TU: Avez-vous remplacé des filtres ? Combien ?) */
+    safeSetText(form, "fill_51", q2, filled);
+
+    /* Buses laiton: no AcroForm qty field — draw beside the question row */
     try {
-      var page0 = pdfDoc.getPage(0);
-      var helvQty = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
       if (q1) {
+        var page0 = pdfDoc.getPage(0);
+        var helvQty = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
         page0.drawText(String(q1), { x: 330, y: 338, size: 10, font: helvQty, color: PDFLib.rgb(0, 0, 0) });
         filled.push("q1(drawText buses laiton)");
-      }
-      if (q2) {
-        page0.drawText(String(q2), { x: 320, y: 305, size: 10, font: helvQty, color: PDFLib.rgb(0, 0, 0) });
-        filled.push("q2(drawText filtres)");
       }
     } catch (qtyDrawErr) {
       gaps.push("qty drawText: " + (qtyDrawErr && qtyDrawErr.message ? qtyDrawErr.message : qtyDrawErr));
@@ -2192,6 +2191,13 @@ async function genPDF() {
 
     /* Do NOT flatten — keep AcroForm editable */
     await appendMediasPage(pdfDoc, PDFLib);
+
+    try {
+      var helvApp = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      form.updateFieldAppearances(helvApp);
+    } catch (appErr) {
+      gaps.push("appearances: " + (appErr && appErr.message ? appErr.message : appErr));
+    }
 
     var outBytes = await pdfDoc.save({ updateFieldAppearances: true });
     var fname = "IMBOX_" + (shop.sn || "report").replace(/[^\w\-]+/g, "_") + "_" + dateVal + ".pdf";
