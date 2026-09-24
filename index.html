@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>IMBOX Report Mobile — CAPS Group</title>
+<title>IMBOX Report Mobile — CAPS Group — 1.0.7</title>
 <style>
 :root {
   --blue: #1a5fa8;
@@ -1914,6 +1914,9 @@ function safeSetText(form, name, value, filled) {
     var tf = form.getTextField(name);
     var v = value == null ? "" : String(value);
     if (v.length > 500) v = v.substring(0, 500);
+    /* Force DA Tf so setFontSize/updateFieldAppearances keep size 9 (template DA may be octal-escaped). */
+    try { tf.acroField.setDefaultAppearance("/Helv 9 Tf 0 g"); } catch (daErr) {}
+    try { tf.setFontSize(9); } catch (fe) {}
     tf.setText(v);
     if (filled) filled.push(name);
     return true;
@@ -2090,10 +2093,10 @@ async function genPDF() {
     var obs = ($("obsPanne").value || "").trim();
     var pieces = ($("piecesReplaced") && $("piecesReplaced").value || "").trim();
     var comments = ($("techComments") && $("techComments").value || "").trim();
-    safeSetText(form, "Veuillez écrire ici tout autre commentaire ou observation", comments || obs, filled);
-    /* Pièces: liste UNE seule fois dans « Lesquels » ; Oui/Non seul dans la case question (évite doublon PDF). */
-    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", pieces, filled);
-    safeSetText(form, "Avez-vous remplacé des pièces?", pieces ? "Oui" : (gyn("y12") === "Non" ? "Non" : ""), filled);
+    safeSetText(form, "Veuillez écrire ici tout autre commentaire ou observation", comments, filled);
+    /* Sinon expliquer = obs panne ; Lesquels = liste pièces (PAS Oui/Non dans le champ texte). */
+    safeSetText(form, "Sinon veuillez expliquer Avezvous remplacé des pièces Lesquels", obs, filled);
+    safeSetText(form, "Avez-vous remplacé des pièces?", pieces, filled);
 
     /* SERVICE Oui/Non pairs — Netlify y0..y11 order */
     var pairs = [
@@ -2134,13 +2137,13 @@ async function genPDF() {
     /* PANNE */
     var repaired = gyn("y12");
     if (setOuiNon(form, "Check Box22", "Check Box24", repaired)) filled.push("Check Box22/24=" + repaired);
-    var pieceYN = pieces ? "Oui" : "—";
-    if (setOuiNon(form, "Check Box48", "Check Box49", pieceYN)) filled.push("Check Box48/49=" + pieceYN);
+    /* Check Box48/49 = Photo CI (y~278), PAS pièces — ne pas les piloter depuis pieces. */
 
     /* Circuit imprimé — exact template field names */
     safeSetText(form, "Circuit Imprimé Remplacement", ciSn, filled);
     safeSetText(form, "Nro de téléphone du nouuveau  c imprimé", ciTel, filled);
-    if (setOuiNon(form, "Check Box50", "Check Box51", gyn("y13"))) filled.push("CI photo y13");
+    /* Check Box48/49 = CI photo row; Check Box50/51 = INSTALLATION damage — leave 50/51 untouched. */
+    if (setOuiNon(form, "Check Box48", "Check Box49", gyn("y13"))) filled.push("CI photo y13");
 
     /* FLAGSHIP */
     safeSetText(form, "Version du Software", ($("swVersion") && $("swVersion").value) || "", filled);
