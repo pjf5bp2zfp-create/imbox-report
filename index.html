@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>IMBOX Report Mobile — CAPS Group — 1.0.7</title>
+<title>IMBOX Report Mobile — CAPS Group — 1.0.8</title>
 <style>
 :root {
   --blue: #1a5fa8;
@@ -628,6 +628,14 @@ html.imbox-mobile { overscroll-behavior-y: contain; }
         <div class="yns" id="y13"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div>
       </div>
     </div>
+  </section>
+
+  <!-- ===== INSTALLATION ===== -->
+  <section class="card" id="sec-installation">
+    <h2><span class="ico">📦</span> Installation</h2>
+    <div class="ynr"><span class="yn-label">L'appareil a-t-il été endommagé lors du transport ?</span><div class="yns" id="y17"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Avez-vous fait le test de pulvérisation ?</span><div class="yns" id="y18"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
+    <div class="ynr"><span class="yn-label">Le LTE fonctionne-t-il ? (pas de × dans le coin gauche)</span><div class="yns" id="y19"><button type="button" class="yb yes" data-yn="yes">Oui</button><button type="button" class="yb no" data-yn="no">Non</button></div></div>
   </section>
 
   <!-- ===== FLAGSHIP ===== -->
@@ -2142,8 +2150,14 @@ async function genPDF() {
     /* Circuit imprimé — exact template field names */
     safeSetText(form, "Circuit Imprimé Remplacement", ciSn, filled);
     safeSetText(form, "Nro de téléphone du nouuveau  c imprimé", ciTel, filled);
-    /* Check Box48/49 = CI photo row; Check Box50/51 = INSTALLATION damage — leave 50/51 untouched. */
+    /* Check Box48/49 = CI photo row */
     if (setOuiNon(form, "Check Box48", "Check Box49", gyn("y13"))) filled.push("CI photo y13");
+
+    /* INSTALLATION — Check Box50–55 Oui/Non only; never write LTE text field */
+    setOuiNon(form, "Check Box50", "Check Box51", gyn("y17")); // transport damage
+    setOuiNon(form, "Check Box52", "Check Box53", gyn("y18")); // spray
+    setOuiNon(form, "Check Box54", "Check Box55", gyn("y19")); // LTE
+    filled.push("Installation damage/spray/LTE=" + [gyn("y17"), gyn("y18"), gyn("y19")].join("/"));
 
     /* FLAGSHIP */
     safeSetText(form, "Version du Software", ($("swVersion") && $("swVersion").value) || "", filled);
